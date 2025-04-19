@@ -1,0 +1,41 @@
+name: Build and Push Docker Image to ECR
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }} # Now using variable
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }} # Now using variable
+  CONTAINER_NAME: ${{ vars.CONTAINER_NAME }} # Now using variable
+
+jobs:
+  cd:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}/${{ env.CONTAINER_NAME }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}/${{ env.CONTAINER_NAME }}:latest

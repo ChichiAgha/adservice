@@ -1,0 +1,64 @@
+name: Continuous Integration (Docker Build)
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: SonarCloud Scan
+      uses: sonarsource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: |
+          ${{ github.repository }}:${{ github.sha }}
+          ${{ github.repository }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Trivy - Scan Docker Image from ECR
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ github.repository }}:${{ github.sha }}
+        format: sarif
+        output: trivy-ecr-image-scan.sarif.json
+        severity: CRITICAL,HIGH,MEDIUM
+        exit-code: 1
+
+    - name: Trivy - Filesystem Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: fs
+        format: table
+        output: trivy-fs-scan-results.txt
+        severity: CRITICAL,HIGH,MEDIUM
+        exit-code: 1
