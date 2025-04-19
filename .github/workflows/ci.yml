@@ -53,7 +53,7 @@ jobs:
         output: trivy-ecr-image-scan.sarif.json
         severity: CRITICAL,HIGH,MEDIUM
         exit-code: 1
-
+###
     - name: Trivy - Filesystem Scan
       uses: aquasecurity/trivy-action@master
       with:
